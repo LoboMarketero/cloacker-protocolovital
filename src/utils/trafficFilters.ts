@@ -1,0 +1,238 @@
+import axios from 'axios';
+
+// Interface for the risk score result
+export interface RiskScoreResult {
+  score: number;
+  details: {
+    country: boolean;
+    mobile: boolean;
+    language: boolean;
+    spyTools: boolean;
+    vpn: boolean;
+    suspiciousUA: boolean;
+    datacenter: boolean;
+    emulator: boolean;
+    visitCount: boolean;
+  };
+}
+
+// Get user's country from IP
+const getCountry = async (): Promise<string> => {
+  try {
+    const response = await axios.get('https://ipapi.co/country');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching country:', error);
+    return 'UNKNOWN';
+  }
+};
+
+// Check for VPN/proxy usage
+const isVPNDetected = async (): Promise<boolean> => {
+  try {
+    const response = await axios.get('https://ipapi.co/proxy');
+    return response.data === 'true';
+  } catch (error) {
+    console.error('Error checking VPN:', error);
+    return false;
+  }
+};
+
+// Check for datacenter IP
+const isDatacenterIP = async (): Promise<boolean> => {
+  try {
+    const response = await axios.get('https://ipapi.co/org');
+    const org = response.data.toLowerCase();
+    const datacenterKeywords = ['aws', 'amazon', 'google', 'microsoft', 'azure', 'digitalocean', 'linode', 'vultr', 'ovh', 'hetzner'];
+    return datacenterKeywords.some(keyword => org.includes(keyword));
+  } catch (error) {
+    console.error('Error checking datacenter IP:', error);
+    return false;
+  }
+};
+
+// Check for suspicious user agent
+const isSuspiciousUserAgent = (): boolean => {
+  const ua = navigator.userAgent.toLowerCase();
+  const suspiciousPatterns = [
+    'headless', 'phantom', 'nightmare', 'selenium',
+    'webdriver', 'cypress', 'puppeteer', 'playwright'
+  ];
+  return suspiciousPatterns.some(pattern => ua.includes(pattern));
+};
+
+// Check for emulator
+const isEmulatorDetected = (): boolean => {
+  const ua = navigator.userAgent.toLowerCase();
+  const emulatorPatterns = [
+    'android emulator', 'sdk_gphone', 'droid4x',
+    'nox', 'bluestacks', 'genymotion'
+  ];
+  return emulatorPatterns.some(pattern => ua.includes(pattern));
+};
+
+// Get visit count for IP (using localStorage as a simple implementation)
+const getVisitCountForIP = (): number => {
+  const visitKey = 'visit_count';
+  const currentCount = parseInt(localStorage.getItem(visitKey) || '0');
+  localStorage.setItem(visitKey, (currentCount + 1).toString());
+  return currentCount;
+};
+
+// Mobile device detection patterns
+const mobilePatterns = [
+  /iPhone/i, /iPod/i, /Android/i, /BlackBerry/i,
+  /Opera Mini/i, /IEMobile/i, /Mobile/i, /phone/i
+];
+
+// Meta moderator detection patterns
+const metaModeratorPatterns = [
+  /fb_internal/i,
+  /meta-moderator/i,
+  /facebook-integrity/i,
+  /meta-policy/i,
+  /fb-policy/i,
+  /meta-ads-review/i,
+  /fb-ads-review/i,
+  /meta-business-integrity/i,
+  /facebook-business-integrity/i
+];
+
+// Check if device is a real mobile device
+export const isRealMobile = (): boolean => {
+  const userAgent = navigator.userAgent;
+  const hasMobileUA = mobilePatterns.some(pattern => pattern.test(userAgent));
+  const screenWidth = window.screen.width;
+  const isMobileSize = screenWidth <= 480 && screenWidth >= 320;
+  const hasTouch = 'ontouchstart' in window;
+  const aspectRatio = window.screen.height / window.screen.width;
+  const isMobileRatio = aspectRatio >= 1.3;
+  
+  return hasMobileUA && isMobileSize && hasTouch && isMobileRatio;
+};
+
+// Check if user is a Meta moderator
+export const isMetaModerator = (): boolean => {
+  const userAgent = navigator.userAgent.toLowerCase();
+  const referrer = document.referrer.toLowerCase();
+  
+  return metaModeratorPatterns.some(pattern => pattern.test(userAgent)) ||
+         referrer.includes('facebook.com/ads') ||
+         referrer.includes('business.facebook.com') ||
+         referrer.includes('meta.com');
+};
+
+// Check if language is valid (pt-BR or pt)
+export const isValidLanguage = (): boolean => {
+  const language = navigator.language.toLowerCase();
+  const languages = navigator.languages?.map(l => l.toLowerCase()) || [];
+  
+  return language.startsWith('pt') || 
+         languages.some(l => l.startsWith('pt'));
+};
+
+// Detect spy tools, crawlers, and bots
+export const spyToolsDetection = (): boolean => {
+  const userAgent = navigator.userAgent.toLowerCase();
+  const referrer = document.referrer.toLowerCase();
+  
+  const spyAgents = [
+    'gurukiller', 'adsparo', 'espiaads', 'espionageads',
+    'adspy', 'bigspy', 'poweradspy', 'socialpeta', 'adplexity',
+    'spyfu', 'semrush', 'ahrefs', 'similarweb', 'buzzsumo',
+    'facebook ad library', 'fb ad library', 'metaadlibrary',
+    'adblock', 'ublock', 'ghostery', 'disconnect',
+    'postman', 'insomnia', 'selenium', 'webdriver',
+    'puppeteer', 'playwright', 'cypress', 'headlesschrome',
+    'spider', 'crawler', 'scraper', 'bot', 'curl', 'wget',
+    'python', 'php', 'java', 'golang', 'nodejs'
+  ];
+  
+  const spyReferrers = [
+    'adspy.com', 'bigspy.com', 'poweradspy.com', 'socialpeta.com',
+    'adplexity.com', 'facebook.com/ads/library', 'gurukiller.com',
+    'adsparo.com', 'spyfu.com', 'semrush.com', 'ahrefs.com'
+  ];
+  
+  return spyAgents.some(spy => userAgent.includes(spy)) ||
+         spyReferrers.some(spy => referrer.includes(spy));
+};
+
+// Calculate comprehensive risk score
+export const calculateRiskScore = async (): Promise<RiskScoreResult> => {
+  let score = 0;
+  const details = {
+    country: false,
+    mobile: false,
+    language: false,
+    spyTools: false,
+    vpn: false,
+    suspiciousUA: false,
+    datacenter: false,
+    emulator: false,
+    visitCount: false
+  };
+  
+  // Meta moderator check (immediate high score)
+  if (isMetaModerator()) {
+    score += 10;
+    details.suspiciousUA = true;
+  }
+  
+  // Country check (Brazil only)
+  const country = await getCountry();
+  if (country !== 'BR') {
+    score += 10;
+    details.country = true;
+  }
+  
+  // Mobile device check
+  if (!isRealMobile()) {
+    score += 10;
+    details.mobile = true;
+  }
+  
+  // Language check
+  if (!isValidLanguage()) {
+    score += 10;
+    details.language = true;
+  }
+  
+  // Spy tools check
+  if (spyToolsDetection()) {
+    score += 10;
+    details.spyTools = true;
+  }
+  
+  // VPN check
+  if (await isVPNDetected()) {
+    score += 10;
+    details.vpn = true;
+  }
+  
+  // Suspicious user agent check
+  if (isSuspiciousUserAgent()) {
+    score += 8;
+    details.suspiciousUA = true;
+  }
+  
+  // Datacenter IP check
+  if (await isDatacenterIP()) {
+    score += 6;
+    details.datacenter = true;
+  }
+  
+  // Emulator check
+  if (isEmulatorDetected()) {
+    score += 7;
+    details.emulator = true;
+  }
+  
+  // Visit count check
+  if (getVisitCountForIP() > 3) {
+    score += 6;
+    details.visitCount = true;
+  }
+  
+  return { score, details };
+};
