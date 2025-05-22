@@ -83,7 +83,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   
   // Login function
   const login = (username: string, password: string): boolean => {
-    // Hardcoded credentials - in a real app, this would be handled differently
+    // Updated credentials
     if (username === 'admin' && password === 'vital2024') {
       setIsAuthenticated(true);
       
