@@ -23,7 +23,7 @@ const getCountry = async (): Promise<string> => {
     return response.data;
   } catch (error) {
     console.error('Error fetching country:', error);
-    return 'UNKNOWN';
+    return 'BR'; // Default to BR on error to avoid false positives
   }
 };
 
@@ -34,7 +34,7 @@ const isVPNDetected = async (): Promise<boolean> => {
     return response.data === 'true';
   } catch (error) {
     console.error('Error checking VPN:', error);
-    return false;
+    return false; // Default to false on error to avoid false positives
   }
 };
 
@@ -47,7 +47,7 @@ const isDatacenterIP = async (): Promise<boolean> => {
     return datacenterKeywords.some(keyword => org.includes(keyword));
   } catch (error) {
     console.error('Error checking datacenter IP:', error);
-    return false;
+    return false; // Default to false on error to avoid false positives
   }
 };
 
@@ -81,8 +81,17 @@ const getVisitCountForIP = (): number => {
 
 // Mobile device detection patterns
 const mobilePatterns = [
-  /iPhone/i, /iPod/i, /iPad/i, /Android/i, /BlackBerry/i,
-  /Opera Mini/i, /IEMobile/i, /Mobile/i, /phone/i
+  /Android/i,
+  /webOS/i,
+  /iPhone/i,
+  /iPad/i,
+  /iPod/i,
+  /BlackBerry/i,
+  /Windows Phone/i,
+  /Opera Mini/i,
+  /IEMobile/i,
+  /Mobile/i,
+  /Tablet/i
 ];
 
 // Meta moderator detection patterns
@@ -101,7 +110,11 @@ const metaModeratorPatterns = [
 // Check if device is a real mobile device
 export const isRealMobile = (): boolean => {
   const userAgent = navigator.userAgent;
-  return mobilePatterns.some(pattern => pattern.test(userAgent)) && 'ontouchstart' in window;
+  const isMobileUA = mobilePatterns.some(pattern => pattern.test(userAgent));
+  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  const isMobileScreen = window.innerWidth <= 1024;
+  
+  return isMobileUA && hasTouch && isMobileScreen;
 };
 
 // Check if user is a Meta moderator
@@ -166,63 +179,65 @@ export const calculateRiskScore = async (): Promise<RiskScoreResult> => {
     visitCount: false
   };
   
-  // Meta moderator check (immediate high score)
+  // Meta moderator check (immediate block)
   if (isMetaModerator()) {
-    score += 10;
+    score = 10;
     details.suspiciousUA = true;
+    return { score, details };
   }
   
-  // Country check (Brazil only)
+  // Spy tools check (immediate block)
+  if (spyToolsDetection()) {
+    score = 10;
+    details.spyTools = true;
+    return { score, details };
+  }
+  
+  // VPN check
+  if (await isVPNDetected()) {
+    score += 3;
+    details.vpn = true;
+  }
+  
+  // Country check
   const country = await getCountry();
   if (country !== 'BR') {
-    score += 1;
+    score += 3;
     details.country = true;
   }
   
   // Mobile device check
   if (!isRealMobile()) {
-    score += 1;
+    score += 2;
     details.mobile = true;
   }
   
   // Language check
   if (!isValidLanguage()) {
-    score += 1;
-    details.language = true;
-  }
-  
-  // Spy tools check
-  if (spyToolsDetection()) {
-    score += 10;
-    details.spyTools = true;
-  }
-  
-  // VPN check
-  if (await isVPNDetected()) {
     score += 2;
-    details.vpn = true;
+    details.language = true;
   }
   
   // Suspicious user agent check
   if (isSuspiciousUserAgent()) {
-    score += 8;
+    score += 3;
     details.suspiciousUA = true;
   }
   
   // Datacenter IP check
   if (await isDatacenterIP()) {
-    score += 6;
+    score += 2;
     details.datacenter = true;
   }
   
   // Emulator check
   if (isEmulatorDetected()) {
-    score += 7;
+    score += 2;
     details.emulator = true;
   }
   
   // Visit count check
-  if (getVisitCountForIP() > 3) {
+  if (getVisitCountForIP() > 5) {
     score += 1;
     details.visitCount = true;
   }
