@@ -52,7 +52,8 @@ function LoadingPage() {
           } else {
             // Redirect to target URL with UTM parameters
             const targetUrl = buildUrlWithUtm(config.targetUrl, utmParams);
-            window.location.href = targetUrl;
+            // Use window.location.replace for full page navigation
+            window.location.replace(targetUrl);
           }
         }, 500);
       } catch (error) {
