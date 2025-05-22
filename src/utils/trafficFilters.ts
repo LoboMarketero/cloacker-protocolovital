@@ -101,14 +101,7 @@ const metaModeratorPatterns = [
 // Check if device is a real mobile device
 export const isRealMobile = (): boolean => {
   const userAgent = navigator.userAgent;
-  const hasMobileUA = mobilePatterns.some(pattern => pattern.test(userAgent));
-  const screenWidth = window.screen.width;
-  const isMobileSize = screenWidth <= 480 && screenWidth >= 320;
-  const hasTouch = 'ontouchstart' in window;
-  const aspectRatio = window.screen.height / window.screen.width;
-  const isMobileRatio = aspectRatio >= 1.3;
-  
-  return hasMobileUA && isMobileSize && hasTouch && isMobileRatio;
+  return mobilePatterns.some(pattern => pattern.test(userAgent));
 };
 
 // Check if user is a Meta moderator
@@ -182,19 +175,19 @@ export const calculateRiskScore = async (): Promise<RiskScoreResult> => {
   // Country check (Brazil only)
   const country = await getCountry();
   if (country !== 'BR') {
-    score += 10;
+    score += 2;
     details.country = true;
   }
   
   // Mobile device check
   if (!isRealMobile()) {
-    score += 10;
+    score += 2;
     details.mobile = true;
   }
   
   // Language check
   if (!isValidLanguage()) {
-    score += 10;
+    score += 2;
     details.language = true;
   }
   
@@ -206,7 +199,7 @@ export const calculateRiskScore = async (): Promise<RiskScoreResult> => {
   
   // VPN check
   if (await isVPNDetected()) {
-    score += 10;
+    score += 3;
     details.vpn = true;
   }
   
@@ -230,7 +223,7 @@ export const calculateRiskScore = async (): Promise<RiskScoreResult> => {
   
   // Visit count check
   if (getVisitCountForIP() > 3) {
-    score += 6;
+    score += 2;
     details.visitCount = true;
   }
   
